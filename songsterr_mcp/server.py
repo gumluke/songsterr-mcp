@@ -24,7 +24,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 PORT = int(os.environ.get("PORT", 8000))
-BASE = "https://www.songsterr.com"
+# Current Songsterr API (old /a/wa/ and /a/ra/ endpoints are deprecated/404)
+API_BASE = "https://www.songsterr.com/api"
+VIEW_BASE = "https://www.songsterr.com"
 
 mcp = FastMCP("Songsterr MCP", host="0.0.0.0", port=PORT)
 
@@ -75,32 +77,27 @@ class GetTabResponse(BaseModel):
     )
 
 
+def _view_url(song_id: int) -> str:
+    return f"{VIEW_BASE}/a/wa/view?r={song_id}"
+
+
+def _song_to_tab(s: dict[str, Any]) -> TabResult:
+    """Parse one song from API response (api/songs or api/song)."""
+    sid = s.get("songId") or s.get("id") or 0
+    title = s.get("title") or ""
+    artist = s.get("artist") if isinstance(s.get("artist"), str) else str(s.get("artist", ""))
+    return TabResult(id=int(sid), title=title, artist=artist, view_url=_view_url(int(sid)))
+
+
 def _songs_from_json(data: list[dict[str, Any]]) -> list[TabResult]:
-    out: list[TabResult] = []
-    for s in data:
-        sid = s.get("id") or s.get("songId") or 0
-        title = s.get("title") or ""
-        artist = (
-            s.get("artist", {}).get("name", "")
-            if isinstance(s.get("artist"), dict)
-            else str(s.get("artist", ""))
-        )
-        out.append(
-            TabResult(
-                id=int(sid),
-                title=title,
-                artist=artist,
-                view_url=f"{BASE}/a/wa/view?r={sid}",
-            )
-        )
-    return out
+    return [_song_to_tab(s) for s in data]
 
 
 @mcp.tool()
 def search_tabs(pattern: str) -> SearchTabsResponse:
     """Search for guitar, bass, or drum tabs by keyword (song title, artist, or phrase)."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(f"{BASE}/a/ra/songs.json", params={"pattern": pattern})
+        r = client.get(f"{API_BASE}/songs", params={"search": pattern})
         r.raise_for_status()
         data = r.json()
     if not isinstance(data, list):
@@ -111,41 +108,23 @@ def search_tabs(pattern: str) -> SearchTabsResponse:
 
 @mcp.tool()
 def best_match(query: str) -> BestMatchResponse | None:
-    """Get the single best matching tab for a search query (e.g. 'enter sandman')."""
+    """Get the single best matching tab for a search query (e.g. 'stairway to heaven led zeppelin')."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(
-            f"{BASE}/a/wa/bestMatchForQueryStringPart",
-            params={"s": query},
-        )
+        r = client.get(f"{API_BASE}/songs", params={"search": query})
         r.raise_for_status()
         data = r.json()
-    if not data:
+    if not isinstance(data, list) or len(data) == 0:
         return None
-    if isinstance(data, dict):
-        sid = data.get("id") or data.get("songId") or 0
-        title = data.get("title") or ""
-        artist = (
-            data.get("artist", {}).get("name", "")
-            if isinstance(data.get("artist"), dict)
-            else str(data.get("artist", ""))
-        )
-        return BestMatchResponse(
-            id=int(sid),
-            title=title,
-            artist=artist,
-            view_url=f"{BASE}/a/wa/view?r={sid}",
-        )
-    return None
+    first = data[0]
+    tab = _song_to_tab(first)
+    return BestMatchResponse(id=tab.id, title=tab.title, artist=tab.artist, view_url=tab.view_url)
 
 
 @mcp.tool()
 def search_by_artist(artists: str) -> SearchTabsResponse:
     """Get tabs by one or more artist names (comma-separated)."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(
-            f"{BASE}/a/ra/songs/byartists.json",
-            params={"artists": artists.strip()},
-        )
+        r = client.get(f"{API_BASE}/songs", params={"search": artists.strip()})
         r.raise_for_status()
         data = r.json()
     if not isinstance(data, list):
@@ -158,35 +137,20 @@ def search_by_artist(artists: str) -> SearchTabsResponse:
 def get_tab(tab_id: int) -> GetTabResponse | None:
     """Fetch a specific tab by its Songsterr ID (returns tab info and view URL)."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(f"{BASE}/a/wa/view", params={"r": tab_id})
+        r = client.get(f"{API_BASE}/song/{tab_id}")
         r.raise_for_status()
-        content_type = r.headers.get("content-type", "")
-        raw_preview: str | None = None
-        if "application/json" in content_type:
-            data = r.json()
-            if isinstance(data, dict):
-                sid = data.get("id") or data.get("songId") or tab_id
-                title = data.get("title") or ""
-                artist = (
-                    data.get("artist", {}).get("name", "")
-                    if isinstance(data.get("artist"), dict)
-                    else str(data.get("artist", ""))
-                )
-                return GetTabResponse(
-                    id=int(sid),
-                    title=title,
-                    artist=artist,
-                    view_url=f"{BASE}/a/wa/view?r={sid}",
-                    raw_preview=json.dumps(data)[:2000] if data else None,
-                )
-        text = r.text
-        raw_preview = (text[:3000] + "...") if len(text) > 3000 else (text or None)
+        data = r.json()
+    if not isinstance(data, dict):
+        return None
+    tab = _song_to_tab(data)
+    # Optional: include a short preview (track names, etc.)
+    raw_preview = json.dumps({"tracks": [t.get("name") for t in data.get("tracks", [])[:5]]})[:500]
     return GetTabResponse(
-        id=tab_id,
-        title="",
-        artist="",
-        view_url=f"{BASE}/a/wa/view?r={tab_id}",
-        raw_preview=raw_preview,
+        id=tab.id,
+        title=tab.title,
+        artist=tab.artist,
+        view_url=tab.view_url,
+        raw_preview=raw_preview or None,
     )
 
 

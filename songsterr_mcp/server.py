@@ -114,7 +114,7 @@ def _songs_from_json(data: list[dict[str, Any]]) -> list[TabResult]:
 def search_tabs(pattern: str) -> SearchTabsResponse:
     """Search for guitar, bass, or drum tabs by keyword (song title, artist, or phrase)."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(f"{API_BASE}/songs", params={"search": pattern})
+        r = client.get(f"{API_BASE}/songs", params={"pattern": pattern})
         r.raise_for_status()
         data = r.json()
     if not isinstance(data, list):
@@ -127,7 +127,7 @@ def search_tabs(pattern: str) -> SearchTabsResponse:
 def best_match(query: str) -> BestMatchResponse | None:
     """Get the single best matching tab for a search query (e.g. 'stairway to heaven led zeppelin')."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(f"{API_BASE}/songs", params={"search": query})
+        r = client.get(f"{API_BASE}/songs", params={"pattern": query})
         r.raise_for_status()
         data = r.json()
     if not isinstance(data, list) or len(data) == 0:
@@ -141,7 +141,7 @@ def best_match(query: str) -> BestMatchResponse | None:
 def search_by_artist(artists: str) -> SearchTabsResponse:
     """Get tabs by one or more artist names (comma-separated)."""
     with httpx.Client(timeout=15.0) as client:
-        r = client.get(f"{API_BASE}/songs", params={"search": artists.strip()})
+        r = client.get(f"{API_BASE}/songs", params={"pattern": artists.strip()})
         r.raise_for_status()
         data = r.json()
     if not isinstance(data, list):

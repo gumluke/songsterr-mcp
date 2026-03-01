@@ -7,7 +7,9 @@ def get_credentials() -> dict[str, str]:
     """
     Get developer-provided credentials from environment.
 
-    Developer sets this in env vars, user doesn't need to provide anything.
+    Songsterr's public API does not require an API key. This is kept for
+    compatibility with Gumstack template; add API_KEY here if you use a
+    licensed Songsterr API later.
     """
     return {
         "api_key": os.environ.get("API_KEY", ""),

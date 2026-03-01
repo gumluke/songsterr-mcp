@@ -1,9 +1,16 @@
 name: "Songsterr MCP"
-description: "MCP server for Songsterr MCP"
+description: "MCP server for Songsterr guitar, bass, and drum tabs"
 icon: "assets/icon.png"
 
 auth:
   type: none
+
 tools:
-  - name: "example_tool"
-    description: "Example tool demonstrating credential usage"
+  - name: "search_tabs"
+    description: "Search for guitar, bass, or drum tabs by keyword (song title, artist, or phrase)"
+  - name: "best_match"
+    description: "Get the single best matching tab for a search query (e.g. 'enter sandman')"
+  - name: "search_by_artist"
+    description: "Get tabs by one or more artist names (comma-separated)"
+  - name: "get_tab"
+    description: "Fetch a specific tab by its Songsterr ID (returns tab info and view URL)"

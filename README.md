@@ -40,7 +40,11 @@ This server uses **No Authentication**. Songsterr’s public API does not requir
 | `search_tabs` | Search for guitar, bass, or drum tabs by keyword (song title, artist, or phrase) |
 | `best_match` | Get the single best matching tab for a search query (e.g. "enter sandman") |
 | `search_by_artist` | Get tabs by one or more artist names (comma-separated) |
-| `get_tab` | Fetch a specific tab by its Songsterr ID (returns tab info and view URL) |
+| `get_tab` | Fetch a tab by ID (metadata, track list, and a working view URL) |
+
+## Tab notation
+
+Songsterr’s **public API** only exposes search and song **metadata** (title, artist, track names). The actual **tab notation** (the notes/tablature) is not available via any documented public endpoint — it’s rendered in the browser on Songsterr. Every result includes a **view_url** that uses the current site URL pattern (e.g. `/a/wsa/artist-title-tab-s123`). Open that link to view and play the tab on Songsterr.
 
 ## Deploy to Gumstack
 

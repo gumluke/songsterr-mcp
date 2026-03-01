@@ -4,9 +4,9 @@ Exposes tools to search and fetch guitar/bass/drum tabs from Songsterr.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
+import re
 from typing import Any
 
 import httpx
@@ -65,20 +65,32 @@ class BestMatchResponse(BaseModel):
 
 
 class GetTabResponse(BaseModel):
-    """Response for fetching a single tab by ID."""
+    """Response for fetching a single tab by ID. Open view_url in a browser to see the tab notation."""
 
     id: int = Field(description="Songsterr tab ID")
     title: str = Field(description="Song title")
     artist: str = Field(description="Artist name")
-    view_url: str = Field(description="URL to view the tab on Songsterr")
-    raw_preview: str | None = Field(
-        default=None,
-        description="Short preview of tab content if available (may be HTML)",
+    view_url: str = Field(
+        description="Working URL to open the tab on Songsterr (notation is only available in-browser)"
+    )
+    tracks: list[str] = Field(
+        default_factory=list,
+        description="Instrument/track names (e.g. Lead Guitar, Bass, Drums)",
     )
 
 
-def _view_url(song_id: int) -> str:
-    return f"{VIEW_BASE}/a/wa/view?r={song_id}"
+def _slug(text: str) -> str:
+    """Build URL slug: lowercase, alphanumeric and hyphens only."""
+    s = (text or "").lower().strip()
+    s = re.sub(r"[^a-z0-9\s-]", "", s)
+    s = re.sub(r"[-\s]+", "-", s).strip("-")
+    return s or "tab"
+
+
+def _view_url(song_id: int, artist: str = "", title: str = "") -> str:
+    """Current Songsterr tab page URL (old /a/wa/view?r= is deprecated)."""
+    slug = f"{_slug(artist)}-{_slug(title)}".strip("-") or "tab"
+    return f"{VIEW_BASE}/a/wsa/{slug}-tab-s{song_id}"
 
 
 def _song_to_tab(s: dict[str, Any]) -> TabResult:
@@ -86,7 +98,12 @@ def _song_to_tab(s: dict[str, Any]) -> TabResult:
     sid = s.get("songId") or s.get("id") or 0
     title = s.get("title") or ""
     artist = s.get("artist") if isinstance(s.get("artist"), str) else str(s.get("artist", ""))
-    return TabResult(id=int(sid), title=title, artist=artist, view_url=_view_url(int(sid)))
+    return TabResult(
+        id=int(sid),
+        title=title,
+        artist=artist,
+        view_url=_view_url(int(sid), artist=artist, title=title),
+    )
 
 
 def _songs_from_json(data: list[dict[str, Any]]) -> list[TabResult]:
@@ -135,7 +152,7 @@ def search_by_artist(artists: str) -> SearchTabsResponse:
 
 @mcp.tool()
 def get_tab(tab_id: int) -> GetTabResponse | None:
-    """Fetch a specific tab by its Songsterr ID (returns tab info and view URL)."""
+    """Fetch a tab by Songsterr ID. Returns metadata and a working view_url to open the tab in a browser. Tab notation is not available via API — use view_url to view/play on Songsterr."""
     with httpx.Client(timeout=15.0) as client:
         r = client.get(f"{API_BASE}/song/{tab_id}")
         r.raise_for_status()
@@ -143,14 +160,13 @@ def get_tab(tab_id: int) -> GetTabResponse | None:
     if not isinstance(data, dict):
         return None
     tab = _song_to_tab(data)
-    # Optional: include a short preview (track names, etc.)
-    raw_preview = json.dumps({"tracks": [t.get("name") for t in data.get("tracks", [])[:5]]})[:500]
+    tracks = [t.get("name", "").strip() for t in data.get("tracks", []) if t.get("name")]
     return GetTabResponse(
         id=tab.id,
         title=tab.title,
         artist=tab.artist,
         view_url=tab.view_url,
-        raw_preview=raw_preview or None,
+        tracks=tracks,
     )
 
 

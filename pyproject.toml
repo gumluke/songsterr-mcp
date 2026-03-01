@@ -1,0 +1,44 @@
+[project]
+name = "songsterr-mcp"
+version = "0.1.0"
+description = "MCP server for Songsterr MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+    "gumstack-mcp>=1.23.3",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.scripts]
+songsterr-mcp = "songsterr_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["songsterr_mcp"]
+
+[tool.uv]
+package = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
+[[tool.uv.index]]
+name = "gumstack"
+url = "https://us-west1-python.pkg.dev/gumstack-public/gumstack-mcp/simple/"
+explicit = true
+
+[tool.uv.sources]
+gumstack-mcp = { index = "gumstack" }

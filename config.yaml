@@ -1,0 +1,9 @@
+name: "Songsterr MCP"
+description: "MCP server for Songsterr MCP"
+icon: "assets/icon.png"
+
+auth:
+  type: none
+tools:
+  - name: "example_tool"
+    description: "Example tool demonstrating credential usage"
